@@ -1,26 +1,14 @@
 #include <Arduino.h>
 #include <IotWebConf.h>
-#include <FastLED.h>
-#include <sprite.h>
-#include <matrix.h>
+#include <NeoPixelBus.h>
+#include <NeoPixelAnimator.h>
+#include "DisplayPixelsText.h"
+#include "font8x8.h"
 
 #define LED_PIN  14
-#define BRIGHTNESS 3
-#define CHIPSET WS2812B
-#define COLOR_ORDER GRB
 
 const char thingName[] = "esp-cial";
 const char wifiInitialApPassword[] = "nyamukhausdara";
-
-// Params for width and height
-const uint8_t kMatrixWidth = 16;
-const uint8_t kMatrixHeight = 16;
-
-const bool    kMatrixSerpentineLayout = true;
-#define NUM_LEDS (kMatrixWidth * kMatrixHeight)
-CRGB leds_plus_safety_pixel[ NUM_LEDS + 1];
-CRGB leds[ NUM_LEDS ];
-#define LAST_VISIBLE_LED 255
 
 const int led = 2;
 unsigned long previousMillis = 0;
@@ -31,6 +19,8 @@ DNSServer dnsServer;
 WebServer server(80);
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword);
+NeoPixelBus<MyPixelColorFeature, Neo800KbpsMethod> *strip = new NeoPixelBus<MyPixelColorFeature, Neo800KbpsMethod> (PixelCount, LED_PIN);
+DisplayPixelsText *pixelText = new DisplayPixelsText();
 
 void handleRoot()
 {
@@ -44,17 +34,6 @@ void handleRoot()
   s += "</body></html>\n";
 
   server.send(200, "text/html", s);
-}
-
-uint8_t XY (uint8_t x, uint8_t y) {
-  // any out of bounds address maps to the first hidden pixel
-  if ( (x >= kMatrixWidth) || (y >= kMatrixHeight) ) {
-    return (LAST_VISIBLE_LED + 1);
-  }
-
-  uint8_t i = (y * kMatrixWidth) + x;
-  uint8_t j = XYTable[i];
-  return j;
 }
 
 void setup()
@@ -96,21 +75,12 @@ void setup()
     }
   });
 
-  FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalSMD5050);
-  FastLED.setBrightness( BRIGHTNESS );
-  for (byte y = 0; y < kMatrixHeight; y++) {
-    for (byte x = 0; x < kMatrixWidth; x++) {
-      if (DigDug01[ kMatrixWidth * y + x ] != 0x000000) {
-        leds[ XY(x, y) ]  = pgm_read_dword(&(DigDug01[ kMatrixWidth * y + x ]));
-      }
-      else {
-        //leds[ XY(x, y) ]  = CRGB::Yellow;
-      }
-    }
-  }
-
-  FastLED.show();
+  strip->Begin();
   Serial.println("Ready");
+  pixelText->SetColor(RgbColor(4, 123, 56));
+  //pixelText->SetText("Dad I’m hungry’ … ‘Hi hungry I’m dad");
+  pixelText->SetText("The project I am working on is on behalf of a company that releases their code base as open source IF it comes to fruition then I");
+  //pixelText->SetText("Angpao Nalai, Om Totong!");
 }
 
 void loop()
@@ -126,4 +96,7 @@ void loop()
 
     digitalWrite(led, ledState);
   }
+
+  pixelText->UpdateAnimation();
+  strip->Show();
 }
