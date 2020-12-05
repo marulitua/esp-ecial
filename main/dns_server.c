@@ -33,33 +33,34 @@ Contains the freeRTOS task for the DNS server that processes the requests.
 
 #include <lwip/sockets.h>
 #include <string.h>
+#include <stdint.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
-#include <esp_event_loop.h>
+#include <esp_event.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <nvs_flash.h>
-
 #include <lwip/err.h>
 #include <lwip/sockets.h>
 #include <lwip/sys.h>
 #include <lwip/netdb.h>
 #include <lwip/dns.h>
-
 #include <byteswap.h>
 
 #include "wifi_manager.h"
 #include "dns_server.h"
 
-static const char TAG[] = "dns_server";
+static const char DNS_SERVER_TAG[] = "dns_server";
 static TaskHandle_t task_dns_server = NULL;
 int socket_fd;
 
 void dns_server_start() {
-    xTaskCreate(&dns_server, "dns_server", 3072, NULL, WIFI_MANAGER_TASK_PRIORITY-1, &task_dns_server);
+	if(task_dns_server == NULL){
+		xTaskCreate(&dns_server, "dns_server", 3072, NULL, WIFI_MANAGER_TASK_PRIORITY-1, &task_dns_server);
+	}
 }
 
 void dns_server_stop(){
@@ -77,7 +78,7 @@ void dns_server(void *pvParameters) {
 
 
 
-    struct sockaddr_in sa, ra;
+    struct sockaddr_in ra;
 
     /* Set redirection DNS hijack to the access point IP */
     ip4_addr_t ip_resolved;
@@ -87,19 +88,19 @@ void dns_server(void *pvParameters) {
     /* Create UDP socket */
     socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (socket_fd < 0){
-        ESP_LOGE(TAG, "Failed to create socket");
+        ESP_LOGE(DNS_SERVER_TAG, "Failed to create socket");
         exit(0);
     }
-    memset(&sa, 0, sizeof(struct sockaddr_in));
 
     /* Bind to port 53 (typical DNS Server port) */
-    tcpip_adapter_ip_info_t ip;
-    tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
+    esp_netif_ip_info_t ip;
+    esp_netif_t* netif_sta = wifi_manager_get_esp_netif_sta();
+    ESP_ERROR_CHECK(esp_netif_get_ip_info(netif_sta, &ip));
     ra.sin_family = AF_INET;
     ra.sin_addr.s_addr = ip.ip.addr;
     ra.sin_port = htons(53);
     if (bind(socket_fd, (struct sockaddr *)&ra, sizeof(struct sockaddr_in)) == -1) {
-        ESP_LOGE(TAG, "Failed to bind to 53/udp");
+        ESP_LOGE(DNS_SERVER_TAG, "Failed to bind to 53/udp");
         close(socket_fd);
         exit(1);
     }
@@ -114,7 +115,7 @@ void dns_server(void *pvParameters) {
     char *domain; /* This is only used for debug and serves no other purpose */
     int err;
 
-    ESP_LOGI(TAG, "DNS Server listening on 53/udp");
+    ESP_LOGI(DNS_SERVER_TAG, "DNS Server listening on 53/udp");
 
     /* Start loop to process DNS requests */
     for(;;) {
@@ -152,7 +153,7 @@ void dns_server(void *pvParameters) {
             for(char* c=domain; *c != '\0'; c++){
             	if(*c < ' ' || *c > 'z') *c = '.'; /* technically we should test if the first two bits are 00 (e.g. if( (*c & 0xC0) == 0x00) *c = '.') but this makes the code a lot more readable */
             }
-            ESP_LOGI(TAG, "Replying to DNS request for %s from %s", domain, ip_address);
+            ESP_LOGI(DNS_SERVER_TAG, "Replying to DNS request for %s from %s", domain, ip_address);
 
 
             /* create DNS answer at the end of the query*/
@@ -166,7 +167,7 @@ void dns_server(void *pvParameters) {
 
             err = sendto(socket_fd, response, length+sizeof(dns_answer_t), 0, (struct sockaddr *)&client, client_len);
             if (err < 0) {
-            	ESP_LOGE(TAG, "UDP sendto failed: %d", err);
+            	ESP_LOGE(DNS_SERVER_TAG, "UDP sendto failed: %d", err);
             }
         }
 

@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2019 Tony Pottier
+Copyright (c) 2017-2020 Tony Pottier
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,7 +19,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-@file http_server.h
+@file http_app.h
 @author Tony Pottier
 @brief Defines all functions necessary for the HTTP server to run.
 
@@ -31,37 +31,40 @@ function to process requests, decode URLs, serve files, etc. etc.
 @see https://github.com/tonyp7/esp32-wifi-manager
 */
 
-#ifndef HTTP_SERVER_H_INCLUDED
-#define HTTP_SERVER_H_INCLUDED
+#ifndef HTTP_APP_H_INCLUDED
+#define HTTP_APP_H_INCLUDED
+
+#include <stdbool.h>
+#include <esp_http_server.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * @brief RTOS task for the HTTP server. Do not start manually.
- * @see void http_server_start()
+
+/** @brief Defines the URL where the wifi manager is located
+ *  By default it is at the server root (ie "/"). If you wish to add your own webpages
+ *  you may want to relocate the wifi manager to another URL, for instance /wifimanager
  */
-void http_server(void *pvParameters);
+#define WEBAPP_LOCATION 					CONFIG_WEBAPP_LOCATION
 
-/* @brief helper function that processes one HTTP request at a time */
-void http_server_netconn_serve(struct netconn *conn);
 
-/* @brief create the task for the http server */
-void http_server_start();
+/** 
+ * @brief spawns the http server 
+ */
+void http_app_start(bool lru_purge_enable);
 
 /**
- * @brief gets a char* pointer to the first occurence of header_name withing the complete http request request.
- *
- * For optimization purposes, no local copy is made. memcpy can then be used in coordination with len to extract the
- * data.
- *
- * @param request the full HTTP raw request.
- * @param header_name the header that is being searched.
- * @param len the size of the header value if found.
- * @return pointer to the beginning of the header value.
+ * @brief stops the http server 
  */
-char* http_server_get_header(char *request, char *header_name, int *len);
+void http_app_stop();
+
+/** 
+ * @brief sets a hook into the wifi manager URI handlers. Setting the handler to NULL disables the hook.
+ * @return ESP_OK in case of success, ESP_ERR_INVALID_ARG if the method is unsupported.
+ */
+esp_err_t http_app_set_handler_hook( httpd_method_t method,  esp_err_t (*handler)(httpd_req_t *r)  );
+
 
 #ifdef __cplusplus
 }

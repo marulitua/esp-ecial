@@ -29,11 +29,33 @@ SOFTWARE.
 
 #include <stdio.h>
 #include <string.h>
+#include <esp_wifi.h>
+#include <esp_netif.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_log.h"
+
+#include "nvs.h"
+#include "nvs_flash.h"
+#include "mdns.h"
+#include "lwip/api.h"
+#include "lwip/err.h"
+#include "lwip/netdb.h"
+#include "lwip/ip4_addr.h"
+
+
+#include "json.h"
+#include "json.c"
+#include "dns_server.h"
+#include "dns_server.c"
+#include "nvs_sync.h"
+#include "nvs_sync.c"
+#include "http_app.h"
+#include "http_app.c"
+
 #include "wifi_manager.h"
+#include "wifi_manager.c"
 
 /* @brief tag used for ESP serial console messages */
 static const char TAG[] = "esp-cial main";
@@ -61,7 +83,7 @@ void app_main(void)
     wifi_manager_start();
 
     /* register a callback as an example to how you can integrate your code with the wifi manager */
-    wifi_manager_set_callback(EVENT_STA_GOT_IP, &cb_connection_ok);
+    wifi_manager_set_callback(WM_EVENT_STA_GOT_IP, &cb_connection_ok);
 
     xTaskCreatePinnedToCore(&monitoring_task, "monitoring_task", 2048, NULL, 1, NULL, 1);
 }
