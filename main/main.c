@@ -44,7 +44,6 @@ SOFTWARE.
 #include "lwip/netdb.h"
 #include "lwip/ip4_addr.h"
 
-
 #include "json.h"
 #include "json.c"
 #include "dns_server.h"
@@ -57,8 +56,31 @@ SOFTWARE.
 #include "wifi_manager.h"
 #include "wifi_manager.c"
 
+#include "led_strip.h"
+#include "led_strip.c"
+
 /* @brief tag used for ESP serial console messages */
-static const char TAG[] = "esp-cial main";
+
+#define LED_TYPE LED_STRIP_WS2812
+#define LED_GPIO 2
+#define LED_CHANNEL RMT_CHANNEL_0
+#define LED_STRIP_LEN 256
+
+static const rgb_t colors[] = {
+    { .raw = { 0x1, 0x1, 0x1 } },
+    { .raw = { 0x5, 0x5, 0x5 } },
+    { .raw = { 0x10, 0x10, 0x10 } },
+    { .raw = { 0x15, 0x15, 0x15 } },
+    { .raw = { 0x20, 0x20, 0x20 } },
+    { .raw = { 0x25, 0x25, 0x25 } },
+    { .raw = { 0x30, 0x30, 0x30 } },
+    { .raw = { 0xff, 0xff, 0xff } },
+    { .raw = { 0x00, 0x00, 0xff } },
+    { .raw = { 0x00, 0xff, 0x00 } },
+    { .raw = { 0xff, 0x00, 0x00 } },
+};
+
+#define COLORS_TOTAL (sizeof(colors) / sizeof(rgb_t))
 
 /**
  * @brief RTOS task that periodically prints the heap memory available.
@@ -77,6 +99,31 @@ void cb_connection_ok(void *pvParameter) {
     ESP_LOGI(TAG, "I have a connection!");
 }
 
+void test(void *pvParameters)
+{
+    led_strip_t strip = {
+        .type = LED_TYPE,
+        .length = LED_STRIP_LEN,
+        .gpio = LED_GPIO,
+        .channel = LED_CHANNEL,
+        .buf = NULL,
+    };
+
+    ESP_ERROR_CHECK(led_strip_init(&strip));
+
+    size_t c = 0;
+    while (1)
+    {
+        ESP_ERROR_CHECK(led_strip_fill(&strip, 0, strip.length, colors[c]));
+        ESP_ERROR_CHECK(led_strip_flush(&strip));
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        if (++c >= COLORS_TOTAL)
+            c = 0;
+    }
+}
+
 void app_main(void)
 {
     /* start the wifi manager */
@@ -86,4 +133,7 @@ void app_main(void)
     wifi_manager_set_callback(WM_EVENT_STA_GOT_IP, &cb_connection_ok);
 
     xTaskCreatePinnedToCore(&monitoring_task, "monitoring_task", 2048, NULL, 1, NULL, 1);
+
+    led_strip_install();
+    xTaskCreate(test, "test", configMINIMAL_STACK_SIZE * 5, NULL, 5, NULL);
 }
